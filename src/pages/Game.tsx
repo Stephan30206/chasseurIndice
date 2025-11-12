@@ -28,6 +28,86 @@ const questions = [
     answer: "LIVRE",
     letters: "LIVREBCDFGH",
   },
+  {
+    id: 3,
+    images: [
+      "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?w=400",
+      "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400",
+      "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400",
+    ],
+    answer: "NATURE",
+    letters: "NATUREPQRST",
+  },
+  {
+    id: 4,
+    images: [
+      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400",
+      "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?w=400",
+      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400",
+    ],
+    answer: "MODE",
+    letters: "MODEFGHIJK",
+  },
+  {
+    id: 5,
+    images: [
+      "https://images.unsplash.com/photo-1495195134817-aeb325a55b65?w=400",
+      "https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=400",
+      "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400",
+    ],
+    answer: "CUISINE",
+    letters: "CUISINEPQRT",
+  },
+  {
+    id: 6,
+    images: [
+      "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400",
+      "https://images.unsplash.com/photo-1517649763962-0c623066013b?w=400",
+      "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400",
+    ],
+    answer: "SPORT",
+    letters: "SPORTABCDE",
+  },
+  {
+    id: 7,
+    images: [
+      "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400",
+      "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=400",
+      "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400",
+    ],
+    answer: "MUSIQUE",
+    letters: "MUSIQUEPQRS",
+  },
+  {
+    id: 8,
+    images: [
+      "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=400",
+      "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400",
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
+    ],
+    answer: "HOMME",
+    letters: "HOMMEPQRSTU",
+  },
+  {
+    id: 9,
+    images: [
+      "https://images.unsplash.com/photo-1560439513-74b037a25d84?w=400",
+      "https://images.unsplash.com/photo-1551884170-09fb70a3a2ed?w=400",
+      "https://images.unsplash.com/photo-1502982720700-bfff97f2ecac?w=400",
+    ],
+    answer: "VOYAGE",
+    letters: "VOYAGEPQRST",
+  },
+  {
+    id: 10,
+    images: [
+      "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400",
+      "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400",
+      "https://images.unsplash.com/photo-1531482615713-2afd69097998?w=400",
+    ],
+    answer: "TRAVAIL",
+    letters: "TRAVAILPQRS",
+  },
 ];
 
 const Game = () => {
@@ -38,6 +118,8 @@ const Game = () => {
   const [timeLeft, setTimeLeft] = useState(60);
   const [isAnswered, setIsAnswered] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [speedBonus, setSpeedBonus] = useState(0);
 
   const question = questions[currentQuestion];
 
@@ -68,18 +150,40 @@ const Game = () => {
 
     if (userAnswer === question.answer) {
       const points = timeLeft < 40 ? 130 : 100; // Bonus rapidité
-      setScore(score + points);
+      const newScore = score + points;
+      const newCorrectAnswers = correctAnswers + 1;
+      const newSpeedBonus = timeLeft < 40 ? speedBonus + 30 : speedBonus;
+      
+      setScore(newScore);
+      setCorrectAnswers(newCorrectAnswers);
+      setSpeedBonus(newSpeedBonus);
       
       toast.success(`+${points} points!`, {
         description: timeLeft < 40 ? "Bonus rapidité +30!" : "Bonne réponse!",
         duration: 2000,
       });
+
+      // Save to localStorage immediately
+      if (currentQuestion === questions.length - 1) {
+        localStorage.setItem("finalScore", newScore.toString());
+        localStorage.setItem("correctAnswers", newCorrectAnswers.toString());
+        localStorage.setItem("speedBonus", newSpeedBonus.toString());
+      }
     } else {
-      setScore(Math.max(0, score - 25));
+      const newScore = Math.max(0, score - 25);
+      setScore(newScore);
+      
       toast.error("-25 points", {
         description: "Mauvaise réponse",
         duration: 2000,
       });
+
+      // Save to localStorage immediately
+      if (currentQuestion === questions.length - 1) {
+        localStorage.setItem("finalScore", newScore.toString());
+        localStorage.setItem("correctAnswers", correctAnswers.toString());
+        localStorage.setItem("speedBonus", speedBonus.toString());
+      }
     }
 
     setTimeout(() => {
@@ -95,7 +199,6 @@ const Game = () => {
       setIsAnswered(false);
       setTimeLeft(60);
     } else {
-      localStorage.setItem("finalScore", score.toString());
       navigate("/results");
     }
   };

@@ -8,13 +8,19 @@ const Results = () => {
   const navigate = useNavigate();
   const [finalScore, setFinalScore] = useState(0);
   const [playerRole, setPlayerRole] = useState<any>(null);
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [speedBonus, setSpeedBonus] = useState(0);
 
   useEffect(() => {
     const score = localStorage.getItem("finalScore");
     const role = localStorage.getItem("playerRole");
+    const correct = localStorage.getItem("correctAnswers");
+    const bonus = localStorage.getItem("speedBonus");
     
     if (score) setFinalScore(parseInt(score));
     if (role) setPlayerRole(JSON.parse(role));
+    if (correct) setCorrectAnswers(parseInt(correct));
+    if (bonus) setSpeedBonus(parseInt(bonus));
   }, []);
 
   const getScoreColor = (score: number) => {
@@ -33,6 +39,8 @@ const Results = () => {
     localStorage.removeItem("finalScore");
     localStorage.removeItem("playerRole");
     localStorage.removeItem("waitingPlayers");
+    localStorage.removeItem("correctAnswers");
+    localStorage.removeItem("speedBonus");
     navigate("/");
   };
 
@@ -73,12 +81,12 @@ const Results = () => {
               <div className="text-center">
                 <Award className="w-8 h-8 mx-auto text-success mb-2" />
                 <p className="text-sm text-muted-foreground">Bonnes réponses</p>
-                <p className="text-xl font-bold">--</p>
+                <p className="text-xl font-bold">{correctAnswers}/10</p>
               </div>
               <div className="text-center">
                 <Medal className="w-8 h-8 mx-auto text-primary mb-2" />
                 <p className="text-sm text-muted-foreground">Bonus rapidité</p>
-                <p className="text-xl font-bold">--</p>
+                <p className="text-xl font-bold">+{speedBonus}</p>
               </div>
               <div className="text-center">
                 <Trophy className="w-8 h-8 mx-auto text-accent mb-2" />
