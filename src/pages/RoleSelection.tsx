@@ -4,15 +4,26 @@ import { Button } from "@/components/ui/button";
 import { GraduationCap, Heart, Book, Code, Globe, Megaphone, Briefcase, User } from "lucide-react";
 
 const roles = [
-  { id: "droit", name: "Droit", icon: GraduationCap, color: "from-blue-500 to-blue-600" },
-  { id: "nurs", name: "Nurs", icon: Heart, color: "from-pink-500 to-pink-600" },
-  { id: "theologie", name: "Théologie", icon: Book, color: "from-purple-500 to-purple-600" },
-  { id: "informatique", name: "Informatique", icon: Code, color: "from-cyan-500 to-cyan-600" },
-  { id: "anglais", name: "Langue Anglaise", icon: Globe, color: "from-green-500 to-green-600" },
-  { id: "communication", name: "Communication", icon: Megaphone, color: "from-orange-500 to-orange-600" },
-  { id: "gestion", name: "Gestion", icon: Briefcase, color: "from-yellow-500 to-yellow-600" },
-  { id: "professeur", name: "Professeur", icon: User, color: "from-red-500 to-red-600" },
+  { id: "droit", name: "Droit", icon: { name: "GraduationCap" }, color: "from-blue-500 to-blue-600" },
+  { id: "nurs", name: "Nurs", icon: { name: "Heart" }, color: "from-pink-500 to-pink-600" },
+  { id: "theologie", name: "Théologie", icon: { name: "Book" }, color: "from-purple-500 to-purple-600" },
+  { id: "informatique", name: "Informatique", icon: { name: "Code" }, color: "from-cyan-500 to-cyan-600" },
+  { id: "anglais", name: "Langue Anglaise", icon: { name: "Globe" }, color: "from-green-500 to-green-600" },
+  { id: "communication", name: "Communication", icon: { name: "Megaphone" }, color: "from-orange-500 to-orange-600" },
+  { id: "gestion", name: "Gestion", icon: { name: "Briefcase" }, color: "from-yellow-500 to-yellow-600" },
+  { id: "professeur", name: "Professeur", icon: { name: "User" }, color: "from-red-500 to-red-600" },
 ];
+
+const iconMap: Record<string, any> = {
+  GraduationCap,
+  Heart,
+  Book,
+  Code,
+  Globe,
+  Megaphone,
+  Briefcase,
+  User,
+};
 
 const RoleSelection = () => {
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
@@ -20,10 +31,12 @@ const RoleSelection = () => {
 
   const handleRoleSelect = (roleId: string) => {
     setSelectedRole(roleId);
-    // Store role in localStorage
+    
+    // Store role in localStorage avec la structure correcte
     const role = roles.find(r => r.id === roleId);
     if (role) {
       localStorage.setItem("playerRole", JSON.stringify(role));
+      
       setTimeout(() => {
         navigate("/waiting-room");
       }, 500);
@@ -44,7 +57,7 @@ const RoleSelection = () => {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {roles.map((role, index) => {
-            const Icon = role.icon;
+            const Icon = iconMap[role.icon.name];
             const isSelected = selectedRole === role.id;
             
             return (
@@ -65,9 +78,12 @@ const RoleSelection = () => {
           })}
         </div>
 
-        <div className="text-center text-muted-foreground">
+        <div className="text-center text-muted-foreground space-y-2">
           <p className="text-sm">
-            En attente de {8} joueurs pour commencer la partie
+            En attente de 2 à 8 joueurs pour commencer la partie
+          </p>
+          <p className="text-xs">
+            🌐 Mode multijoueur en temps réel activé
           </p>
         </div>
       </div>

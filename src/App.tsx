@@ -7,6 +7,7 @@ import RoleSelection from "./pages/RoleSelection";
 import WaitingRoom from "./pages/WaitingRoom";
 import Game from "./pages/Game";
 import Results from "./pages/Results";
+import PublicDisplay from "./pages/PublicDisplay";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/waiting-room" element={<WaitingRoom />} />
           <Route path="/game" element={<Game />} />
           <Route path="/results" element={<Results />} />
+          <Route path="/public" element={<PublicDisplay />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
