@@ -123,6 +123,50 @@ const Game = () => {
 
   const question = questions[currentQuestion];
 
+  // Fonction pour sauvegarder tous les scores à la fin du jeu
+  const saveAllPlayersScores = (finalScore: number, finalCorrect: number, finalBonus: number) => {
+    const waitingPlayers = localStorage.getItem("waitingPlayers");
+    const currentRole = localStorage.getItem("playerRole");
+    
+    if (!waitingPlayers || !currentRole) return;
+    
+    const players = JSON.parse(waitingPlayers);
+    const roleData = JSON.parse(currentRole);
+    
+    // Créer un tableau avec tous les scores
+    const allScores = players.map((player: any) => {
+      // Pour le joueur actuel, utiliser les vraies données
+      if (roleData.name === player.name) {
+        return {
+          name: player.name,
+          role: player.name,
+          score: finalScore,
+          correctAnswers: finalCorrect,
+          speedBonus: finalBonus,
+          color: player.color,
+          isCurrentPlayer: true
+        };
+      }
+      
+      // Pour les autres joueurs, générer des scores simulés (en attendant le backend)
+      const correctAns = Math.floor(Math.random() * 6) + 5; // 5-10
+      const speedBon = Math.floor(Math.random() * 30) + 10; // 10-40
+      
+      return {
+        name: player.name,
+        role: player.name,
+        score: correctAns * 10 + speedBon,
+        correctAnswers: correctAns,
+        speedBonus: speedBon,
+        color: player.color,
+        isCurrentPlayer: false
+      };
+    });
+    
+    // Sauvegarder dans le localStorage
+    localStorage.setItem("allPlayersScores", JSON.stringify(allScores));
+  };
+
   useEffect(() => {
     if (timeLeft > 0 && !isAnswered) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -168,6 +212,8 @@ const Game = () => {
         localStorage.setItem("finalScore", newScore.toString());
         localStorage.setItem("correctAnswers", newCorrectAnswers.toString());
         localStorage.setItem("speedBonus", newSpeedBonus.toString());
+        // Sauvegarder tous les scores
+        saveAllPlayersScores(newScore, newCorrectAnswers, newSpeedBonus);
       }
     } else {
       const newScore = Math.max(0, score - 25);
@@ -183,6 +229,8 @@ const Game = () => {
         localStorage.setItem("finalScore", newScore.toString());
         localStorage.setItem("correctAnswers", correctAnswers.toString());
         localStorage.setItem("speedBonus", speedBonus.toString());
+        // Sauvegarder tous les scores
+        saveAllPlayersScores(newScore, correctAnswers, speedBonus);
       }
     }
 
@@ -199,6 +247,14 @@ const Game = () => {
       setIsAnswered(false);
       setTimeLeft(60);
     } else {
+      // Si c'est la dernière question et qu'on n'a pas encore sauvegardé
+      const finalScoreSaved = localStorage.getItem("finalScore");
+      if (!finalScoreSaved) {
+        localStorage.setItem("finalScore", score.toString());
+        localStorage.setItem("correctAnswers", correctAnswers.toString());
+        localStorage.setItem("speedBonus", speedBonus.toString());
+        saveAllPlayersScores(score, correctAnswers, speedBonus);
+      }
       navigate("/results");
     }
   };
