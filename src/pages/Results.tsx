@@ -60,8 +60,8 @@ const Results = () => {
           <div className="text-center space-y-6">
             {playerRole && (
               <div className="flex items-center justify-center gap-4">
-                <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${playerRole.color} flex items-center justify-center`}>
-                  {playerRole.icon && <playerRole.icon.type className="w-8 h-8" />}
+                <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${playerRole.color} flex items-center justify-center text-white font-bold text-2xl`}>
+                  {playerRole.name.charAt(0)}
                 </div>
                 <div className="text-left">
                   <p className="text-sm text-muted-foreground">Vous avez joué en tant que</p>
