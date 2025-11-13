@@ -1,24 +1,21 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Heart, Book, Code, Globe, Megaphone, Briefcase, User, Users, AlertCircle } from "lucide-react";
+import { GraduationCap, Heart, Book, Code, Globe, Megaphone, Briefcase, User, Users, AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { createClient } from '@supabase/supabase-js';
 
-// Déclaration TypeScript pour le storage partagé Lovable
-declare global {
-  interface Window {
-    storage?: {
-      get: (key: string, shared?: boolean) => Promise<{ key: string; value: string; shared: boolean } | null>;
-      set: (key: string, value: string, shared?: boolean) => Promise<{ key: string; value: string; shared: boolean } | null>;
-      delete: (key: string, shared?: boolean) => Promise<{ key: string; deleted: boolean; shared: boolean } | null>;
-      list: (prefix?: string, shared?: boolean) => Promise<{ keys: string[]; prefix?: string; shared: boolean } | null>;
-    };
-  }
-}
+// Configuration Supabase
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+const supabase = supabaseUrl && supabaseAnonKey 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 
 interface Player {
   id: string;
   name: string;
-  icon: { name: string };
+  icon_name: string;
   color: string;
   timestamp: number;
 }
@@ -34,60 +31,49 @@ const iconMap: Record<string, any> = {
   User,
 };
 
-// Vérifier si le storage partagé est disponible
-const hasSharedStorage = () => {
-  return typeof window !== 'undefined' && 
-         window.storage !== undefined && 
-         typeof window.storage.set === 'function';
-};
-
 const WaitingRoom = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [storageAvailable, setStorageAvailable] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Vérifier la disponibilité du storage avec retry
+  // Vérifier la connexion Supabase
   useEffect(() => {
-    let retryCount = 0;
-    const maxRetries = 5;
+    if (!supabase) {
+      setError("❌ Supabase non configuré. Vérifiez vos variables d'environnement.");
+      setIsLoading(false);
+      return;
+    }
 
-    const checkStorage = () => {
-      if (hasSharedStorage()) {
-        console.log('✅ Storage partagé détecté !');
-        setStorageAvailable(true);
-        return true;
+    const checkConnection = async () => {
+      try {
+        const { error } = await supabase.from('players').select('count').limit(1);
+        if (error) throw error;
+        setIsConnected(true);
+        console.log('✅ Connecté à Supabase !');
+      } catch (err: any) {
+        console.error('❌ Erreur connexion Supabase:', err);
+        setError(`Erreur de connexion: ${err.message}`);
+        setIsConnected(false);
       }
-      return false;
     };
 
-    // Vérification immédiate
-    if (checkStorage()) return;
-
-    // Retry avec délai croissant
-    const retryInterval = setInterval(() => {
-      retryCount++;
-      console.log(`Tentative ${retryCount}/${maxRetries} de détection du storage...`);
-      
-      if (checkStorage() || retryCount >= maxRetries) {
-        clearInterval(retryInterval);
-        if (!hasSharedStorage()) {
-          console.warn('⚠️ Storage partagé non disponible après', maxRetries, 'tentatives');
-          setStorageAvailable(false);
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(retryInterval);
+    checkConnection();
   }, []);
 
   // Initialiser le joueur actuel
   useEffect(() => {
     const initializePlayer = async () => {
+      if (!supabase || !isConnected) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        // Récupérer le rôle depuis localStorage
         const playerRole = localStorage.getItem("playerRole");
         if (!playerRole) {
+          setError("Aucun rôle sélectionné");
           setIsLoading(false);
           return;
         }
@@ -96,138 +82,149 @@ const WaitingRoom = () => {
         const playerId = `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
         const playerData: Player = {
-          ...role,
           id: playerId,
+          name: role.name,
+          icon_name: role.icon.name,
+          color: role.color,
           timestamp: Date.now()
         };
 
+        // Ajouter le joueur à Supabase
+        const { error: insertError } = await supabase
+          .from('players')
+          .insert(playerData);
+
+        if (insertError) throw insertError;
+
         setCurrentPlayer(playerData);
-
-        // Si storage disponible, ajouter le joueur
-        if (hasSharedStorage() && window.storage) {
-          try {
-            await window.storage.set(
-              `player:${playerId}`,
-              JSON.stringify(playerData),
-              true
-            );
-            console.log('✅ Joueur ajouté au storage partagé');
-          } catch (err) {
-            console.error('❌ Erreur lors de l\'ajout au storage:', err);
-          }
-        }
-
+        console.log('✅ Joueur ajouté:', playerData.name);
         setIsLoading(false);
-      } catch (error) {
-        console.error("Erreur lors de l'initialisation:", error);
+      } catch (err: any) {
+        console.error("Erreur initialisation:", err);
+        setError(`Erreur: ${err.message}`);
         setIsLoading(false);
       }
     };
 
-    // Attendre que le storage soit vérifié
-    if (storageAvailable !== null) {
+    if (isConnected) {
       initializePlayer();
     }
-  }, [storageAvailable]);
+  }, [isConnected]);
 
-  // Charger tous les joueurs
+  // Charger les joueurs actifs
   const loadPlayers = async () => {
-    if (!hasSharedStorage() || !window.storage) return;
+    if (!supabase) return;
 
     try {
-      const result = await window.storage.list('player:', true);
-      if (!result || !result.keys) {
-        setPlayers(currentPlayer ? [currentPlayer] : []);
-        return;
-      }
+      const cutoff = Date.now() - 45000; // 45 secondes
 
-      const now = Date.now();
-      const playerList: Player[] = [];
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .gte('timestamp', cutoff)
+        .order('timestamp', { ascending: true });
 
-      for (const key of result.keys) {
-        try {
-          const data = await window.storage.get(key, true);
-          if (data && data.value) {
-            const player = JSON.parse(data.value);
-            
-            // Supprimer les joueurs inactifs (> 45 secondes)
-            if (now - player.timestamp > 45000) {
-              await window.storage.delete(key, true);
-            } else {
-              playerList.push(player);
-            }
-          }
-        } catch (err) {
-          console.error('Erreur lors du chargement du joueur:', err);
-        }
-      }
+      if (error) throw error;
 
-      // Trier par ordre d'arrivée
-      playerList.sort((a, b) => a.timestamp - b.timestamp);
-      setPlayers(playerList);
-    } catch (error) {
-      console.error("Erreur lors du chargement des joueurs:", error);
-      // Fallback: afficher au moins le joueur actuel
-      if (currentPlayer) {
-        setPlayers([currentPlayer]);
-      }
+      setPlayers(data || []);
+    } catch (err: any) {
+      console.error("Erreur chargement:", err);
     }
   };
 
-  // Rafraîchir la liste des joueurs toutes les 2 secondes
+  // S'abonner aux changements en temps réel
   useEffect(() => {
-    if (!currentPlayer) return;
+    if (!supabase || !currentPlayer) return;
 
-    if (hasSharedStorage()) {
-      loadPlayers();
-      const interval = setInterval(loadPlayers, 2000);
-      return () => clearInterval(interval);
-    } else {
-      // Mode local: afficher uniquement le joueur actuel
-      setPlayers([currentPlayer]);
-    }
-  }, [currentPlayer, storageAvailable]);
+    // Chargement initial
+    loadPlayers();
 
-  // Mettre à jour la présence du joueur toutes les 15 secondes
+    // Abonnement aux changements
+    const channel = supabase
+      .channel('players-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'players'
+        },
+        () => {
+          console.log('🔄 Changement détecté, rechargement...');
+          loadPlayers();
+        }
+      )
+      .subscribe();
+
+    console.log('👂 Écoute des changements en temps réel...');
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentPlayer]);
+
+  // Mettre à jour la présence toutes les 15 secondes
   useEffect(() => {
-    if (!currentPlayer || !hasSharedStorage() || !window.storage) return;
+    if (!supabase || !currentPlayer) return;
 
     const updatePresence = async () => {
       try {
-        await window.storage!.set(
-          `player:${currentPlayer.id}`,
-          JSON.stringify({
-            ...currentPlayer,
-            timestamp: Date.now()
-          }),
-          true
-        );
-      } catch (error) {
-        console.error('Erreur lors de la mise à jour:', error);
+        const { error } = await supabase
+          .from('players')
+          .update({ timestamp: Date.now() })
+          .eq('id', currentPlayer.id);
+
+        if (error) throw error;
+        console.log('💓 Présence mise à jour');
+      } catch (err: any) {
+        console.error('Erreur mise à jour présence:', err);
       }
     };
 
     const interval = setInterval(updatePresence, 15000);
     return () => clearInterval(interval);
-  }, [currentPlayer, storageAvailable]);
+  }, [currentPlayer]);
 
-  // Nettoyer quand le joueur quitte
+  // Nettoyer les joueurs inactifs toutes les 30 secondes
+  useEffect(() => {
+    if (!supabase) return;
+
+    const cleanup = async () => {
+      const cutoff = Date.now() - 45000;
+      await supabase
+        .from('players')
+        .delete()
+        .lt('timestamp', cutoff);
+    };
+
+    const interval = setInterval(cleanup, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Nettoyer à la fermeture
   useEffect(() => {
     return () => {
-      if (currentPlayer && hasSharedStorage() && window.storage) {
-        window.storage.delete(`player:${currentPlayer.id}`, true).catch(console.error);
+      if (supabase && currentPlayer) {
+        supabase
+          .from('players')
+          .delete()
+          .eq('id', currentPlayer.id)
+          .then(() => console.log('🧹 Joueur supprimé'));
       }
     };
   }, [currentPlayer]);
 
   const handleStartGame = () => {
     localStorage.setItem("gamePlayers", JSON.stringify(players));
-    alert("Lancement du jeu avec " + players.length + " joueurs !");
+    window.location.href = "/game";
   };
 
-  const handleLeave = () => {
-    if (currentPlayer && hasSharedStorage() && window.storage) {
-      window.storage.delete(`player:${currentPlayer.id}`, true).catch(console.error);
+  const handleLeave = async () => {
+    if (supabase && currentPlayer) {
+      await supabase
+        .from('players')
+        .delete()
+        .eq('id', currentPlayer.id);
     }
     localStorage.removeItem("playerRole");
     window.location.href = "/";
@@ -244,13 +241,13 @@ const WaitingRoom = () => {
     );
   }
 
-  if (!currentPlayer) {
+  if (error || !currentPlayer) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-8">
         <Card className="p-8 max-w-md w-full bg-red-900/50 border-red-500">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-red-200 mb-4 text-center">Erreur</h2>
-          <p className="text-red-100 mb-6 text-center">Aucun rôle sélectionné.</p>
+          <p className="text-red-100 mb-6 text-center">{error || "Une erreur est survenue"}</p>
           <Button onClick={() => window.location.href = "/"} className="w-full">
             Retour à la sélection
           </Button>
@@ -272,21 +269,28 @@ const WaitingRoom = () => {
             <span>{players.length} / 8 joueurs connectés</span>
           </div>
           
-          {storageAvailable ? (
-            <div className="inline-block px-4 py-2 bg-green-500/20 rounded-full border border-green-500">
-              <p className="text-sm text-green-300 flex items-center gap-2 justify-center">
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                Mode multijoueur en temps réel
-              </p>
-            </div>
-          ) : (
-            <div className="inline-block px-4 py-2 bg-yellow-500/20 rounded-full border border-yellow-500">
-              <p className="text-sm text-yellow-300 flex items-center gap-2 justify-center">
-                <AlertCircle className="w-4 h-4" />
-                Mode solo (storage partagé non disponible)
-              </p>
-            </div>
-          )}
+          <div className={`inline-block px-4 py-2 rounded-full border ${
+            isConnected 
+              ? 'bg-green-500/20 border-green-500' 
+              : 'bg-red-500/20 border-red-500'
+          }`}>
+            <p className={`text-sm flex items-center gap-2 justify-center ${
+              isConnected ? 'text-green-300' : 'text-red-300'
+            }`}>
+              {isConnected ? (
+                <>
+                  <Wifi className="w-4 h-4" />
+                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                  Multijoueur en temps réel activé
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4" />
+                  Déconnecté
+                </>
+              )}
+            </p>
+          </div>
         </div>
 
         {/* Grille des joueurs */}
@@ -295,7 +299,7 @@ const WaitingRoom = () => {
             const player = players[index];
             
             if (player) {
-              const Icon = iconMap[player.icon.name] || User;
+              const Icon = iconMap[player.icon_name] || User;
               const isCurrentPlayer = currentPlayer?.id === player.id;
               
               return (
@@ -332,72 +336,50 @@ const WaitingRoom = () => {
         </div>
 
         {/* Actions */}
-        {currentPlayer && (
-          <div className="text-center space-y-4">
-            <Card className="inline-block px-6 py-3 bg-white/10 border-white/20 backdrop-blur">
-              <p className="text-white text-lg">
-                Vous jouez en tant que{" "}
-                <span className="font-bold text-yellow-400">{currentPlayer.name}</span>
-              </p>
-            </Card>
+        <div className="text-center space-y-4">
+          <Card className="inline-block px-6 py-3 bg-white/10 border-white/20 backdrop-blur">
+            <p className="text-white text-lg">
+              Vous jouez en tant que{" "}
+              <span className="font-bold text-yellow-400">{currentPlayer.name}</span>
+            </p>
+          </Card>
 
-            <div className="flex flex-col md:flex-row gap-4 justify-center">
+          <div className="flex flex-col md:flex-row gap-4 justify-center">
+            <Button
+              onClick={handleLeave}
+              variant="outline"
+              size="lg"
+              className="bg-red-500/20 border-red-500 text-red-200 hover:bg-red-500/30"
+            >
+              Quitter la Salle
+            </Button>
+
+            {players.length >= 2 && (
               <Button
-                onClick={handleLeave}
-                variant="outline"
+                onClick={handleStartGame}
                 size="lg"
-                className="bg-red-500/20 border-red-500 text-red-200 hover:bg-red-500/30"
+                className="bg-gradient-to-r from-green-500 to-emerald-600 hover:scale-105 transition-transform text-lg px-8"
               >
-                Quitter la Salle
+                Commencer le Jeu ({players.length} joueurs)
               </Button>
-
-              {players.length >= 2 && storageAvailable && (
-                <Button
-                  onClick={handleStartGame}
-                  size="lg"
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:scale-105 transition-transform text-lg px-8"
-                >
-                  Commencer le Jeu ({players.length} joueurs)
-                </Button>
-              )}
-
-              {players.length >= 1 && !storageAvailable && (
-                <Button
-                  onClick={handleStartGame}
-                  size="lg"
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 transition-transform text-lg px-8"
-                >
-                  Commencer en Solo
-                </Button>
-              )}
-            </div>
-
-            {players.length < 2 && storageAvailable && (
-              <div className="text-white/70">
-                <p>En attente d'au moins 2 joueurs pour commencer...</p>
-                <p className="text-sm mt-2">
-                  Partagez le lien avec d'autres joueurs pour les inviter !
-                </p>
-              </div>
             )}
           </div>
-        )}
+
+          {players.length < 2 && (
+            <div className="text-white/70">
+              <p>En attente d'au moins 2 joueurs pour commencer...</p>
+              <p className="text-sm mt-2">
+                📱 Partagez le lien avec d'autres appareils pour les inviter !
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Informations */}
         <div className="text-center text-xs text-white/50 space-y-2">
-          {storageAvailable ? (
-            <>
-              <p>💡 Ouvrez cette page sur plusieurs appareils pour jouer ensemble</p>
-              <p>🔄 La liste se rafraîchit automatiquement toutes les 2 secondes</p>
-              <p>⏱️ Les joueurs inactifs depuis 45 secondes sont automatiquement retirés</p>
-            </>
-          ) : (
-            <>
-              <p>⚠️ Mode développement local détecté</p>
-              <p>🚀 Déployez sur Lovable.app pour le mode multijoueur</p>
-              <p>📱 URL actuelle: {window.location.href}</p>
-            </>
-          )}
+          <p>🔄 Synchronisation automatique en temps réel</p>
+          <p>📱 Testez sur PC + téléphone simultanément</p>
+          <p>⏱️ Joueurs inactifs  45s automatiquement retirés</p>
         </div>
       </div>
     </div>
