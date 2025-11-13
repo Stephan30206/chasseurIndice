@@ -201,7 +201,7 @@ const WaitingRoom = () => {
 
   const handleStartGame = () => {
     localStorage.setItem("gamePlayers", JSON.stringify(players));
-    window.location.href = "/game";
+    navigate("/game");
   };
 
   const handleLeave = async () => {
@@ -212,7 +212,7 @@ const WaitingRoom = () => {
         .eq('id', currentPlayer.id);
     }
     localStorage.removeItem("playerRole");
-    window.location.href = "/";
+    navigate("/");
   };
 
   if (isLoading) {
@@ -233,7 +233,7 @@ const WaitingRoom = () => {
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-red-200 mb-4 text-center">Erreur</h2>
           <p className="text-red-100 mb-6 text-center">{error || "Une erreur est survenue"}</p>
-          <Button onClick={() => window.location.href = "/"} className="w-full">
+          <Button onClick={() => navigate("/")} className="w-full">
             Retour à la sélection
           </Button>
         </Card>
