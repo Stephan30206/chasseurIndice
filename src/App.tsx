@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import RoleSelection from "./pages/RoleSelection";
 import WaitingRoom from "./pages/WaitingRoom";
-import Game from "./pages/Game";
+import Game from "./pages/Game"; 
 import Results from "./pages/Results";
 import PublicDisplay from "./pages/PublicDisplay";
 import NotFound from "./pages/NotFound";
