@@ -88,18 +88,28 @@ const WaitingRoom = () => {
   // Charger les joueurs actifs
   const loadPlayers = async () => {
     try {
-      const cutoff = Date.now() - 45000;
-
+      // Charger TOUS les joueurs d'abord (pour debug)
       const { data, error } = await supabase
         .from('players')
         .select('*')
-        .gte('timestamp', cutoff)
         .order('timestamp', { ascending: true });
 
       if (error) throw error;
 
-      setPlayers(data || []);
-      console.log('📊 Joueurs:', data?.length || 0);
+      console.log('📊 Total joueurs en DB:', data?.length || 0);
+      console.log('👥 Liste:', data?.map(p => p.name));
+
+      // Filtrer les joueurs actifs (moins de 60 secondes)
+      const now = Date.now();
+      const activePlayers = (data || []).filter(p => {
+        const age = now - p.timestamp;
+        const isActive = age < 60000; // 60 secondes
+        console.log(`   ${p.name}: ${Math.floor(age/1000)}s - ${isActive ? '✅' : '❌'}`);
+        return isActive;
+      });
+
+      setPlayers(activePlayers);
+      console.log('✅ Joueurs actifs:', activePlayers.length);
     } catch (err: any) {
       console.error("❌ Erreur chargement:", err);
     }
