@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, Heart, Book, Code, Globe, Megaphone, Briefcase, User, Users, AlertCircle, Wifi } from "lucide-react";
@@ -17,6 +18,7 @@ const iconMap: Record<string, any> = {
 };
 
 const WaitingRoom = () => {
+  const navigate = useNavigate();
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -165,14 +167,19 @@ const WaitingRoom = () => {
     return () => clearInterval(interval);
   }, [currentPlayer]);
 
-  // Nettoyer les joueurs inactifs
+  // Nettoyer les joueurs inactifs (60 secondes au lieu de 45)
   useEffect(() => {
     const cleanup = async () => {
-      const cutoff = Date.now() - 45000;
-      await supabase
+      const cutoff = Date.now() - 60000;
+      const { error } = await supabase
         .from('players')
         .delete()
         .lt('timestamp', cutoff);
+      
+      if (!error) {
+        console.log('🧹 Nettoyage effectué');
+        loadPlayers(); // Recharger après nettoyage
+      }
     };
 
     const interval = setInterval(cleanup, 30000);
@@ -338,7 +345,18 @@ const WaitingRoom = () => {
         <div className="text-center text-xs text-white/50 space-y-2">
           <p>🔄 Synchronisation automatique en temps réel</p>
           <p>📱 Testez sur PC + téléphone simultanément</p>
-          <p>⏱️ Joueurs inactifs  45s automatiquement retirés</p>
+          <p>⏱️ Joueurs inactifs  60s automatiquement retirés</p>
+          
+          {/* Bouton de debug */}
+          <button
+            onClick={() => {
+              console.log('🔄 Rechargement manuel...');
+              loadPlayers();
+            }}
+            className="mt-2 px-4 py-2 bg-blue-500/20 border border-blue-500 rounded text-blue-300 hover:bg-blue-500/30 text-xs"
+          >
+            🔄 Recharger manuellement
+          </button>
         </div>
       </div>
     </div>
