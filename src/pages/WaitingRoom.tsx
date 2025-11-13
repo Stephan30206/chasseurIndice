@@ -1,24 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Heart, Book, Code, Globe, Megaphone, Briefcase, User, Users, AlertCircle, Wifi, WifiOff } from "lucide-react";
-import { createClient } from '@supabase/supabase-js';
-
-// Configuration Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-const supabase = supabaseUrl && supabaseAnonKey 
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
-
-interface Player {
-  id: string;
-  name: string;
-  icon_name: string;
-  color: string;
-  timestamp: number;
-}
+import { GraduationCap, Heart, Book, Code, Globe, Megaphone, Briefcase, User, Users, AlertCircle, Wifi } from "lucide-react";
+import { supabase, checkSupabaseConnection } from "@/lib/supabaseClient";
+import type { Player } from "@/lib/types";
 
 const iconMap: Record<string, any> = {
   GraduationCap,
@@ -40,35 +25,23 @@ const WaitingRoom = () => {
 
   // Vérifier la connexion Supabase
   useEffect(() => {
-    if (!supabase) {
-      setError("❌ Supabase non configuré. Vérifiez vos variables d'environnement.");
-      setIsLoading(false);
-      return;
-    }
-
-    const checkConnection = async () => {
-      try {
-        const { error } = await supabase.from('players').select('count').limit(1);
-        if (error) throw error;
-        setIsConnected(true);
-        console.log('✅ Connecté à Supabase !');
-      } catch (err: any) {
-        console.error('❌ Erreur connexion Supabase:', err);
-        setError(`Erreur de connexion: ${err.message}`);
-        setIsConnected(false);
+    const init = async () => {
+      const connected = await checkSupabaseConnection();
+      setIsConnected(connected);
+      
+      if (!connected) {
+        setError("Impossible de se connecter à Supabase");
+        setIsLoading(false);
       }
     };
-
-    checkConnection();
+    
+    init();
   }, []);
 
   // Initialiser le joueur actuel
   useEffect(() => {
     const initializePlayer = async () => {
-      if (!supabase || !isConnected) {
-        setIsLoading(false);
-        return;
-      }
+      if (!isConnected) return;
 
       try {
         const playerRole = localStorage.getItem("playerRole");
@@ -89,7 +62,8 @@ const WaitingRoom = () => {
           timestamp: Date.now()
         };
 
-        // Ajouter le joueur à Supabase
+        console.log('➕ Ajout joueur:', playerData.name);
+
         const { error: insertError } = await supabase
           .from('players')
           .insert(playerData);
@@ -97,10 +71,10 @@ const WaitingRoom = () => {
         if (insertError) throw insertError;
 
         setCurrentPlayer(playerData);
-        console.log('✅ Joueur ajouté:', playerData.name);
+        console.log('✅ Joueur ajouté');
         setIsLoading(false);
       } catch (err: any) {
-        console.error("Erreur initialisation:", err);
+        console.error("❌ Erreur:", err);
         setError(`Erreur: ${err.message}`);
         setIsLoading(false);
       }
@@ -113,10 +87,8 @@ const WaitingRoom = () => {
 
   // Charger les joueurs actifs
   const loadPlayers = async () => {
-    if (!supabase) return;
-
     try {
-      const cutoff = Date.now() - 45000; // 45 secondes
+      const cutoff = Date.now() - 45000;
 
       const { data, error } = await supabase
         .from('players')
@@ -127,19 +99,19 @@ const WaitingRoom = () => {
       if (error) throw error;
 
       setPlayers(data || []);
+      console.log('📊 Joueurs:', data?.length || 0);
     } catch (err: any) {
-      console.error("Erreur chargement:", err);
+      console.error("❌ Erreur chargement:", err);
     }
   };
 
   // S'abonner aux changements en temps réel
   useEffect(() => {
-    if (!supabase || !currentPlayer) return;
+    if (!currentPlayer) return;
 
-    // Chargement initial
+    console.log('👂 Activation temps réel');
     loadPlayers();
 
-    // Abonnement aux changements
     const channel = supabase
       .channel('players-realtime')
       .on(
@@ -149,14 +121,14 @@ const WaitingRoom = () => {
           schema: 'public',
           table: 'players'
         },
-        () => {
-          console.log('🔄 Changement détecté, rechargement...');
+        (payload) => {
+          console.log('🔄 Changement:', payload.eventType);
           loadPlayers();
         }
       )
-      .subscribe();
-
-    console.log('👂 Écoute des changements en temps réel...');
+      .subscribe((status) => {
+        console.log('📡 Canal:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -165,19 +137,17 @@ const WaitingRoom = () => {
 
   // Mettre à jour la présence toutes les 15 secondes
   useEffect(() => {
-    if (!supabase || !currentPlayer) return;
+    if (!currentPlayer) return;
 
     const updatePresence = async () => {
       try {
-        const { error } = await supabase
+        await supabase
           .from('players')
           .update({ timestamp: Date.now() })
           .eq('id', currentPlayer.id);
-
-        if (error) throw error;
-        console.log('💓 Présence mise à jour');
-      } catch (err: any) {
-        console.error('Erreur mise à jour présence:', err);
+        console.log('💓 Présence OK');
+      } catch (err) {
+        console.error('❌ Erreur présence:', err);
       }
     };
 
@@ -185,10 +155,8 @@ const WaitingRoom = () => {
     return () => clearInterval(interval);
   }, [currentPlayer]);
 
-  // Nettoyer les joueurs inactifs toutes les 30 secondes
+  // Nettoyer les joueurs inactifs
   useEffect(() => {
-    if (!supabase) return;
-
     const cleanup = async () => {
       const cutoff = Date.now() - 45000;
       await supabase
@@ -204,12 +172,12 @@ const WaitingRoom = () => {
   // Nettoyer à la fermeture
   useEffect(() => {
     return () => {
-      if (supabase && currentPlayer) {
+      if (currentPlayer) {
         supabase
           .from('players')
           .delete()
           .eq('id', currentPlayer.id)
-          .then(() => console.log('🧹 Joueur supprimé'));
+          .then(() => console.log('🧹 Nettoyé'));
       }
     };
   }, [currentPlayer]);
@@ -220,7 +188,7 @@ const WaitingRoom = () => {
   };
 
   const handleLeave = async () => {
-    if (supabase && currentPlayer) {
+    if (currentPlayer) {
       await supabase
         .from('players')
         .delete()
@@ -259,7 +227,6 @@ const WaitingRoom = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 md:p-8">
       <div className="max-w-6xl w-full space-y-8">
-        {/* En-tête */}
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             Salle d'Attente
@@ -269,31 +236,15 @@ const WaitingRoom = () => {
             <span>{players.length} / 8 joueurs connectés</span>
           </div>
           
-          <div className={`inline-block px-4 py-2 rounded-full border ${
-            isConnected 
-              ? 'bg-green-500/20 border-green-500' 
-              : 'bg-red-500/20 border-red-500'
-          }`}>
-            <p className={`text-sm flex items-center gap-2 justify-center ${
-              isConnected ? 'text-green-300' : 'text-red-300'
-            }`}>
-              {isConnected ? (
-                <>
-                  <Wifi className="w-4 h-4" />
-                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                  Multijoueur en temps réel activé
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-4 h-4" />
-                  Déconnecté
-                </>
-              )}
+          <div className="inline-block px-4 py-2 rounded-full border bg-green-500/20 border-green-500">
+            <p className="text-sm flex items-center gap-2 justify-center text-green-300">
+              <Wifi className="w-4 h-4" />
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+              Multijoueur en temps réel
             </p>
           </div>
         </div>
 
-        {/* Grille des joueurs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
           {Array.from({ length: 8 }).map((_, index) => {
             const player = players[index];
@@ -335,7 +286,6 @@ const WaitingRoom = () => {
           })}
         </div>
 
-        {/* Actions */}
         <div className="text-center space-y-4">
           <Card className="inline-block px-6 py-3 bg-white/10 border-white/20 backdrop-blur">
             <p className="text-white text-lg">
@@ -367,19 +317,18 @@ const WaitingRoom = () => {
 
           {players.length < 2 && (
             <div className="text-white/70">
-              <p>En attente d'au moins 2 joueurs pour commencer...</p>
+              <p>En attente d'au moins 2 joueurs...</p>
               <p className="text-sm mt-2">
-                📱 Partagez le lien avec d'autres appareils pour les inviter !
+                📱 Partagez le lien avec d'autres appareils !
               </p>
             </div>
           )}
         </div>
 
-        {/* Informations */}
         <div className="text-center text-xs text-white/50 space-y-2">
           <p>🔄 Synchronisation automatique en temps réel</p>
           <p>📱 Testez sur PC + téléphone simultanément</p>
-          <p>⏱️ Joueurs inactifs  45s automatiquement retirés</p>
+          <p>⏱️ Joueurs inactifs > 45s automatiquement retirés</p>
         </div>
       </div>
     </div>
