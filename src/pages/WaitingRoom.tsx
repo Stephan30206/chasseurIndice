@@ -328,7 +328,7 @@ const WaitingRoom = () => {
         <div className="text-center text-xs text-white/50 space-y-2">
           <p>🔄 Synchronisation automatique en temps réel</p>
           <p>📱 Testez sur PC + téléphone simultanément</p>
-          <p>⏱️ Joueurs inactifs > 45s automatiquement retirés</p>
+          <p>⏱️ Joueurs inactifs  45s automatiquement retirés</p>
         </div>
       </div>
     </div>
