@@ -200,7 +200,6 @@ const WaitingRoom = () => {
   }, [currentPlayer]);
 
   const handleStartGame = () => {
-    localStorage.setItem("gamePlayers", JSON.stringify(players));
     navigate("/game");
   };
 
